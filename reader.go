@@ -70,16 +70,16 @@ var dataTypeLookup = map[string]DataType{
 var ValueConverters [10]func(b []byte) (interface{}, error)
 
 func init() {
-	ValueConverters[String] = toString
-	ValueConverters[Time] = toString
-	ValueConverters[Addr] = toString
-	ValueConverters[Port] = toUint16
-	ValueConverters[Int] = toUint64
-	ValueConverters[Double] = toFloat64
-	ValueConverters[Count] = toUint64
-	ValueConverters[Interval] = toFloat64
-	ValueConverters[Bool] = toBool
-	ValueConverters[Enum] = toString
+	ValueConverters[String] = ToString
+	ValueConverters[Time] = ToFloat64
+	ValueConverters[Addr] = ToString
+	ValueConverters[Port] = ToUint16
+	ValueConverters[Int] = ToUint64
+	ValueConverters[Double] = ToFloat64
+	ValueConverters[Count] = ToUint64
+	ValueConverters[Interval] = ToFloat64
+	ValueConverters[Bool] = ToBool
+	ValueConverters[Enum] = ToString
 }
 
 // NewReader creates a new reader.
@@ -209,27 +209,33 @@ func btos(b []byte) string {
 	return *(*string)(unsafe.Pointer(&b))
 }
 
-func asBytes(b []byte) (interface{}, error) {
+// AsBytes converter returns input bytes untouched.
+func AsBytes(b []byte) (interface{}, error) {
 	return b, nil
 }
 
-func toString(b []byte) (interface{}, error) {
+// ToString converter converts input to string.
+func ToString(b []byte) (interface{}, error) {
 	return string(b), nil
 }
 
-func toUint16(b []byte) (interface{}, error) {
+// ToUint16 converter converts input to uint16.
+func ToUint16(b []byte) (interface{}, error) {
 	i, err := strconv.ParseUint(btos(b), 10, 16)
 	return uint16(i), err
 }
 
-func toUint64(b []byte) (interface{}, error) {
+// ToUint64 converter converts input to uint64.
+func ToUint64(b []byte) (interface{}, error) {
 	return strconv.ParseUint(btos(b), 10, 64)
 }
 
-func toFloat64(b []byte) (interface{}, error) {
+// ToFloat64 converter converts input to float64.
+func ToFloat64(b []byte) (interface{}, error) {
 	return strconv.ParseFloat(btos(b), 64)
 }
 
-func toBool(b []byte) (interface{}, error) {
+// ToBool converter converts input to bool.
+func ToBool(b []byte) (interface{}, error) {
 	return bytes.Equal(b, []byte("T")), nil
 }

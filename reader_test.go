@@ -16,7 +16,7 @@ var input = `#separator \x09
 #open	2019-01-01-00-00-00
 #fields	ts	uid	ip	port	proto	duration	bytes	orig	domains	durations
 #types	time	string	addr	port	enum	interval	count	bool	vector[string]	vector[interval]
-1546300799.563721	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	T	a.com,b.com	1,23.45
+1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	T	a.com,b.com	1,23.45
 -	-	-	-	-	-	-	-	-	-
 (empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)
 #close	2019-01-01-00-00-01
@@ -48,7 +48,7 @@ func TestReadHeader(t *testing.T) {
 func TestRead(t *testing.T) {
 	expected := []Record{
 		{
-			"ts":        "1546300799.563721",
+			"ts":        float64(1546304400.000001),
 			"uid":       "CCb2Mx28qOMGD3hxab",
 			"ip":        "1.1.1.1",
 			"port":      uint16(80),
@@ -102,7 +102,7 @@ func TestRead(t *testing.T) {
 		for k, v := range expected[i] {
 			if !reflect.DeepEqual(v, actual[i][k]) {
 				t.Errorf("%s mismatch. expected %v (%T), got %v (%T)",
-					k, expected[i][k], expected[i][k], v, v)
+					k, v, v, actual[i][k], actual[i][k])
 			}
 		}
 	}
