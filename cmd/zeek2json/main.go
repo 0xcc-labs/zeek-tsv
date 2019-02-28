@@ -2,20 +2,21 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"io"
 	"log"
 	"os"
+
+	"github.com/francoispqt/gojay"
 
 	zeek "github.com/0xcc-labs/zeek-tsv"
 )
 
 func main() {
-	reader := zeek.NewReader(os.Stdin)
 	out := bufio.NewWriter(os.Stdout)
 	defer out.Flush()
 
-	encoder := json.NewEncoder(out)
+	reader := zeek.NewReader(os.Stdin)
+	encoder := gojay.NewEncoder(out)
 	for {
 		record, err := reader.Read()
 		if err != nil {
@@ -24,8 +25,21 @@ func main() {
 			}
 			log.Fatal(err)
 		}
-		if err := encoder.Encode(record); err != nil {
+		if err := encoder.Encode(jsonRecord(record)); err != nil {
 			log.Fatal(err)
 		}
+		out.WriteByte('\n')
 	}
+}
+
+type jsonRecord zeek.Record
+
+func (r jsonRecord) MarshalJSONObject(enc *gojay.Encoder) {
+	for k, v := range r {
+		enc.AddInterfaceKeyOmitEmpty(k, v)
+	}
+}
+
+func (r jsonRecord) IsNil() bool {
+	return r == nil
 }
