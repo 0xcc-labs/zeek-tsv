@@ -10,6 +10,9 @@ import (
 	"unsafe"
 )
 
+// Record is a tsv file record.
+type Record map[string]interface{}
+
 // Reader is a zeek tsv file reader.
 type Reader struct {
 	parser *Parser
@@ -84,7 +87,7 @@ func NewReader(r io.Reader) *Reader {
 	return &Reader{parser: NewParser(r)}
 }
 
-func (r *Reader) Read() (map[string]interface{}, error) {
+func (r *Reader) Read() (Record, error) {
 	var row Row
 	var err error
 
@@ -103,7 +106,7 @@ func (r *Reader) Read() (map[string]interface{}, error) {
 	if bytes.HasPrefix(row[0], []byte("#close")) {
 		return nil, io.EOF
 	}
-	record := make(map[string]interface{}, len(r.header.Fields))
+	record := make(Record, len(r.header.Fields))
 	for i := 0; i < len(r.header.Fields); i++ {
 		record[r.header.Fields[i]], err = r.readValue(row, i)
 		if err != nil {

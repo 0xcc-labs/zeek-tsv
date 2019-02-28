@@ -46,8 +46,8 @@ func TestReadHeader(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	expected := []map[string]interface{}{
-		map[string]interface{}{
+	expected := []Record{
+		{
 			"ts":        "1546300799.563721",
 			"uid":       "CCb2Mx28qOMGD3hxab",
 			"ip":        "1.1.1.1",
@@ -82,7 +82,7 @@ func TestRead(t *testing.T) {
 			"durations": []interface{}{},
 		},
 	}
-	var actual []map[string]interface{}
+	var actual []Record
 
 	reader := NewReader(strings.NewReader(input))
 	for {
@@ -98,9 +98,9 @@ func TestRead(t *testing.T) {
 	if len(expected) != len(actual) {
 		t.Fatalf("expected %d records, got %d", len(expected), len(actual))
 	}
-	for i := 0; i < len(actual); i++ {
-		for k, v := range actual[i] {
-			if !reflect.DeepEqual(v, expected[i][k]) {
+	for i := 0; i < len(expected); i++ {
+		for k, v := range expected[i] {
+			if !reflect.DeepEqual(v, actual[i][k]) {
 				t.Errorf("%s mismatch. expected %v (%T), got %v (%T)",
 					k, expected[i][k], expected[i][k], v, v)
 			}
