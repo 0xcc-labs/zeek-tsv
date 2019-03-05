@@ -2,7 +2,6 @@ package tsv
 
 import (
 	"bytes"
-	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -58,47 +57,14 @@ var expected = []Record{
 		"orig":      true,
 		"domains":   []interface{}{"a.com", "b.com"},
 		"durations": []interface{}{float64(1), float64(23.45)},
-	}, {
-		"ts":        nil,
-		"uid":       nil,
-		"id.orig_h": nil,
-		"id.orig_p": nil,
-		"proto":     nil,
-		"duration":  nil,
-		"bytes":     nil,
-		"num":       nil,
-		"orig":      nil,
-		"domains":   nil,
-		"durations": nil,
-	}, {
-		"ts":        nil,
-		"uid":       nil,
-		"id.orig_h": nil,
-		"id.orig_p": nil,
-		"proto":     nil,
-		"duration":  nil,
-		"bytes":     nil,
-		"num":       nil,
-		"orig":      nil,
-		"domains":   []interface{}{},
-		"durations": []interface{}{},
 	},
+	Record{},
+	Record{},
 }
 
 func TestRead(t *testing.T) {
-	var actual []Record
-
 	reader := NewReader(strings.NewReader(input))
-	for {
-		record, err := reader.Read()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			t.Fatal(err)
-		}
-		actual = append(actual, record)
-	}
+	actual := collect(reader)
 	if len(expected) != len(actual) {
 		t.Fatalf("expected %d records, got %d", len(expected), len(actual))
 	}
@@ -165,4 +131,30 @@ func TestTransformKeys(t *testing.T) {
 	if len(expected[0]) != len(record) {
 		t.Errorf("expected record to have %v fields, got %v", len(expected[0]), len(record))
 	}
+}
+
+func TestOmitEmpty(t *testing.T) {
+	reader := NewReader(strings.NewReader(input)).OmitEmpty(true)
+
+	records := collect(reader)
+
+	if len(expected[0]) != len(records[0]) {
+		t.Errorf("expected record to have %v fields, got %v", len(expected[0]), len(records[0]))
+	}
+	for i := 1; i < len(records); i++ {
+		if len(records[i]) != 0 {
+			t.Errorf("expected empty record, got %v fields", len(records[i]))
+		}
+	}
+}
+
+func collect(reader *Reader) (records []Record) {
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			break
+		}
+		records = append(records, record)
+	}
+	return
 }

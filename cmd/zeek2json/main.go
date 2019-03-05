@@ -16,7 +16,7 @@ func main() {
 	out := bufio.NewWriter(os.Stdout)
 	defer out.Flush()
 
-	reader := zeek.NewReader(os.Stdin).WithKeyTransform(xformKey)
+	reader := zeek.NewReader(os.Stdin).WithKeyTransform(xformKey).OmitEmpty(true)
 	encoder := gojay.NewEncoder(out)
 	for {
 		record, err := reader.Read()

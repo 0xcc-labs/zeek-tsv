@@ -21,6 +21,7 @@ type Reader struct {
 	parser       *Parser
 	header       *Header
 	keyTransform KeyTransform
+	omitEmpty    bool
 }
 
 // Header is a zeek tsv file header.
@@ -97,6 +98,12 @@ func (r *Reader) WithKeyTransform(xform KeyTransform) *Reader {
 	return r
 }
 
+// OmitEmpty configures the reader to omit empty fields from returned records.
+func (r *Reader) OmitEmpty(b bool) *Reader {
+	r.omitEmpty = b
+	return r
+}
+
 func (r *Reader) Read() (Record, error) {
 	var row Row
 	var err error
@@ -118,9 +125,12 @@ func (r *Reader) Read() (Record, error) {
 	}
 	record := make(Record, len(r.header.Fields))
 	for i := 0; i < len(r.header.Fields); i++ {
-		record[r.header.Fields[i]], err = r.readValue(row, i)
+		v, err := r.readValue(row, i)
 		if err != nil {
 			return nil, err
+		}
+		if !r.omitEmpty || v != nil {
+			record[r.header.Fields[i]] = v
 		}
 	}
 	return record, nil
@@ -199,7 +209,7 @@ func (r *Reader) readValue(row Row, idx int) (interface{}, error) {
 	}
 	if bytes.Equal(row[idx], r.header.Empty) {
 		if r.header.Types[idx].container {
-			return []interface{}{}, nil
+			return nil, nil
 		}
 		return nil, nil
 	}
