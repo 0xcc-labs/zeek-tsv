@@ -41,10 +41,26 @@ type jsonRecord zeek.Record
 
 func (r jsonRecord) MarshalJSONObject(enc *gojay.Encoder) {
 	for k, v := range r {
-		enc.AddInterfaceKeyOmitEmpty(k, v)
+		if v, ok := v.([]interface{}); ok {
+			enc.AddInterfaceKey(k, jsonArray(v))
+			continue
+		}
+		enc.AddInterfaceKey(k, v)
 	}
 }
 
 func (r jsonRecord) IsNil() bool {
 	return r == nil
+}
+
+type jsonArray []interface{}
+
+func (a jsonArray) MarshalJSONArray(enc *gojay.Encoder) {
+	for _, v := range a {
+		enc.AddInterface(v)
+	}
+}
+
+func (a jsonArray) IsNil() bool {
+	return len(a) == 0
 }
