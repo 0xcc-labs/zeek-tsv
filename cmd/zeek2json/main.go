@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/francoispqt/gojay"
 
@@ -15,7 +16,7 @@ func main() {
 	out := bufio.NewWriter(os.Stdout)
 	defer out.Flush()
 
-	reader := zeek.NewReader(os.Stdin)
+	reader := zeek.NewReader(os.Stdin).WithKeyTransform(xformKey)
 	encoder := gojay.NewEncoder(out)
 	for {
 		record, err := reader.Read()
@@ -30,6 +31,10 @@ func main() {
 		}
 		out.WriteByte('\n')
 	}
+}
+
+func xformKey(key string) string {
+	return strings.ReplaceAll(key, ".", "_")
 }
 
 type jsonRecord zeek.Record

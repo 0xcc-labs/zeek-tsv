@@ -13,10 +13,14 @@ import (
 // Record is a tsv file record.
 type Record map[string]interface{}
 
+// KeyTransform is a key transform function.
+type KeyTransform func(key string) string
+
 // Reader is a zeek tsv file reader.
 type Reader struct {
-	parser *Parser
-	header *Header
+	parser       *Parser
+	header       *Header
+	keyTransform KeyTransform
 }
 
 // Header is a zeek tsv file header.
@@ -87,6 +91,12 @@ func NewReader(r io.Reader) *Reader {
 	return &Reader{parser: NewParser(r)}
 }
 
+// WithKeyTransform configures the reader to transform record keys.
+func (r *Reader) WithKeyTransform(xform KeyTransform) *Reader {
+	r.keyTransform = xform
+	return r
+}
+
 func (r *Reader) Read() (Record, error) {
 	var row Row
 	var err error
@@ -147,7 +157,11 @@ func (r *Reader) readHeader() (*Header, error) {
 			header.Empty = append(header.Empty, row[1]...)
 		case "#fields":
 			for _, f := range row[1:] {
-				header.Fields = append(header.Fields, string(f))
+				field := string(f)
+				if r.keyTransform != nil {
+					field = r.keyTransform(field)
+				}
+				header.Fields = append(header.Fields, field)
 			}
 		case "#types":
 			for _, t := range row[1:] {

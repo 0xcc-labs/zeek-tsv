@@ -14,7 +14,7 @@ var input = `#separator \x09
 #unset_field	-
 #path	test
 #open	2019-01-01-00-00-00
-#fields	ts	uid	ip	port	proto	duration	bytes	orig	domains	durations
+#fields	ts	uid	id.orig_h	id.orig_p	proto	duration	bytes	orig	domains	durations
 #types	time	string	addr	port	enum	interval	count	bool	vector[string]	vector[interval]
 1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	T	a.com,b.com	1,23.45
 -	-	-	-	-	-	-	-	-	-
@@ -31,7 +31,7 @@ func TestReadHeader(t *testing.T) {
 	if header.Separator != '\t' {
 		t.Error("invalid separator")
 	}
-	if !reflect.DeepEqual(header.Fields, []string{"ts", "uid", "ip", "port", "proto", "duration", "bytes", "orig", "domains", "durations"}) {
+	if !reflect.DeepEqual(header.Fields, []string{"ts", "uid", "id.orig_h", "id.orig_p", "proto", "duration", "bytes", "orig", "domains", "durations"}) {
 		t.Error("invalid fields")
 	}
 	if !bytes.Equal(header.Unset, []byte("-")) {
@@ -50,8 +50,8 @@ func TestRead(t *testing.T) {
 		{
 			"ts":        float64(1546304400.000001),
 			"uid":       "CCb2Mx28qOMGD3hxab",
-			"ip":        "1.1.1.1",
-			"port":      uint16(80),
+			"id.orig_h": "1.1.1.1",
+			"id.orig_p": uint16(80),
 			"proto":     "udp",
 			"duration":  3.755453,
 			"bytes":     uint64(1001),
@@ -61,8 +61,8 @@ func TestRead(t *testing.T) {
 		}, {
 			"ts":        nil,
 			"uid":       nil,
-			"ip":        nil,
-			"port":      nil,
+			"id.orig_h": nil,
+			"id.orig_p": nil,
 			"proto":     nil,
 			"duration":  nil,
 			"bytes":     nil,
@@ -72,8 +72,8 @@ func TestRead(t *testing.T) {
 		}, {
 			"ts":        nil,
 			"uid":       nil,
-			"ip":        nil,
-			"port":      nil,
+			"id.orig_h": nil,
+			"id.orig_p": nil,
 			"proto":     nil,
 			"duration":  nil,
 			"bytes":     nil,
@@ -146,5 +146,19 @@ func TestReadFieldType(t *testing.T) {
 				t.Errorf("got %v, want %v", f, tt.out)
 			}
 		})
+	}
+}
+
+func TestTransformKeys(t *testing.T) {
+	xform := func(key string) string {
+		return strings.ReplaceAll(key, ".", "_")
+	}
+	reader := NewReader(strings.NewReader(input)).WithKeyTransform(xform)
+	record, _ := reader.Read()
+	if _, ok := record["id_orig_h"]; !ok {
+		t.Errorf("expected transformed key")
+	}
+	if 10 != len(record) {
+		t.Errorf("expected record to have %v fields, got %v", 10, len(record))
 	}
 }
