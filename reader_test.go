@@ -14,11 +14,11 @@ var input = `#separator \x09
 #unset_field	-
 #path	test
 #open	2019-01-01-00-00-00
-#fields	ts	uid	id.orig_h	id.orig_p	proto	duration	bytes	orig	domains	durations
-#types	time	string	addr	port	enum	interval	count	bool	vector[string]	vector[interval]
-1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	T	a.com,b.com	1,23.45
--	-	-	-	-	-	-	-	-	-
-(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)
+#fields	ts	uid	id.orig_h	id.orig_p	proto	duration	bytes	num	orig	domains	durations
+#types	time	string	addr	port	enum	interval	count	int	bool	vector[string]	vector[interval]
+1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	-10	T	a.com,b.com	1,23.45
+-	-	-	-	-	-	-	-	-	-	-
+(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)
 #close	2019-01-01-00-00-01
 `
 
@@ -31,7 +31,7 @@ func TestReadHeader(t *testing.T) {
 	if header.Separator != '\t' {
 		t.Error("invalid separator")
 	}
-	if !reflect.DeepEqual(header.Fields, []string{"ts", "uid", "id.orig_h", "id.orig_p", "proto", "duration", "bytes", "orig", "domains", "durations"}) {
+	if !reflect.DeepEqual(header.Fields, []string{"ts", "uid", "id.orig_h", "id.orig_p", "proto", "duration", "bytes", "num", "orig", "domains", "durations"}) {
 		t.Error("invalid fields")
 	}
 	if !bytes.Equal(header.Unset, []byte("-")) {
@@ -45,43 +45,47 @@ func TestReadHeader(t *testing.T) {
 	}
 }
 
+var expected = []Record{
+	{
+		"ts":        float64(1546304400.000001),
+		"uid":       "CCb2Mx28qOMGD3hxab",
+		"id.orig_h": "1.1.1.1",
+		"id.orig_p": uint16(80),
+		"proto":     "udp",
+		"duration":  3.755453,
+		"bytes":     uint64(1001),
+		"num":       int64(-10),
+		"orig":      true,
+		"domains":   []interface{}{"a.com", "b.com"},
+		"durations": []interface{}{float64(1), float64(23.45)},
+	}, {
+		"ts":        nil,
+		"uid":       nil,
+		"id.orig_h": nil,
+		"id.orig_p": nil,
+		"proto":     nil,
+		"duration":  nil,
+		"bytes":     nil,
+		"num":       nil,
+		"orig":      nil,
+		"domains":   nil,
+		"durations": nil,
+	}, {
+		"ts":        nil,
+		"uid":       nil,
+		"id.orig_h": nil,
+		"id.orig_p": nil,
+		"proto":     nil,
+		"duration":  nil,
+		"bytes":     nil,
+		"num":       nil,
+		"orig":      nil,
+		"domains":   []interface{}{},
+		"durations": []interface{}{},
+	},
+}
+
 func TestRead(t *testing.T) {
-	expected := []Record{
-		{
-			"ts":        float64(1546304400.000001),
-			"uid":       "CCb2Mx28qOMGD3hxab",
-			"id.orig_h": "1.1.1.1",
-			"id.orig_p": uint16(80),
-			"proto":     "udp",
-			"duration":  3.755453,
-			"bytes":     uint64(1001),
-			"orig":      true,
-			"domains":   []interface{}{"a.com", "b.com"},
-			"durations": []interface{}{float64(1), float64(23.45)},
-		}, {
-			"ts":        nil,
-			"uid":       nil,
-			"id.orig_h": nil,
-			"id.orig_p": nil,
-			"proto":     nil,
-			"duration":  nil,
-			"bytes":     nil,
-			"orig":      nil,
-			"domains":   nil,
-			"durations": nil,
-		}, {
-			"ts":        nil,
-			"uid":       nil,
-			"id.orig_h": nil,
-			"id.orig_p": nil,
-			"proto":     nil,
-			"duration":  nil,
-			"bytes":     nil,
-			"orig":      nil,
-			"domains":   []interface{}{},
-			"durations": []interface{}{},
-		},
-	}
 	var actual []Record
 
 	reader := NewReader(strings.NewReader(input))
@@ -158,7 +162,7 @@ func TestTransformKeys(t *testing.T) {
 	if _, ok := record["id_orig_h"]; !ok {
 		t.Errorf("expected transformed key")
 	}
-	if 10 != len(record) {
-		t.Errorf("expected record to have %v fields, got %v", 10, len(record))
+	if len(expected[0]) != len(record) {
+		t.Errorf("expected record to have %v fields, got %v", len(expected[0]), len(record))
 	}
 }

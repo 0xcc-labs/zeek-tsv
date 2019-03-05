@@ -78,7 +78,7 @@ func init() {
 	ValueConverters[Time] = ToFloat64
 	ValueConverters[Addr] = ToString
 	ValueConverters[Port] = ToUint16
-	ValueConverters[Int] = ToUint64
+	ValueConverters[Int] = ToInt64
 	ValueConverters[Double] = ToFloat64
 	ValueConverters[Count] = ToUint64
 	ValueConverters[Interval] = ToFloat64
@@ -237,6 +237,11 @@ func ToString(b []byte) (interface{}, error) {
 func ToUint16(b []byte) (interface{}, error) {
 	i, err := strconv.ParseUint(btos(b), 10, 16)
 	return uint16(i), err
+}
+
+// ToInt64 converter converts input to int64.
+func ToInt64(b []byte) (interface{}, error) {
+	return strconv.ParseInt(btos(b), 10, 64)
 }
 
 // ToUint64 converter converts input to uint64.
