@@ -55,6 +55,7 @@ const (
 	Interval
 	Bool
 	Enum
+	Subnet
 )
 
 // Map from #types to DataTypes.
@@ -69,10 +70,11 @@ var dataTypeLookup = map[string]DataType{
 	"interval": Interval,
 	"bool":     Bool,
 	"enum":     Enum,
+	"subnet":   Subnet,
 }
 
 // ValueConverters maps DataTypes to converter functions.
-var ValueConverters [10]func(b []byte) (interface{}, error)
+var ValueConverters [11]func(b []byte) (interface{}, error)
 
 func init() {
 	ValueConverters[String] = ToString
@@ -85,6 +87,7 @@ func init() {
 	ValueConverters[Interval] = ToFloat64
 	ValueConverters[Bool] = ToBool
 	ValueConverters[Enum] = ToString
+	ValueConverters[Subnet] = ToString
 }
 
 // NewReader creates a new reader.
