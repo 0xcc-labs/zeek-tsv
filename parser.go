@@ -20,11 +20,47 @@ type Parser struct {
 
 // NewParser returns a new Parser that reads from r.
 func NewParser(r io.Reader) *Parser {
+	scanner := bufio.NewScanner(r)
+	scanner.Split(splitFunc)
+
 	return &Parser{
 		Delimiter: '\t',
 		Copy:      false,
-		scanner:   bufio.NewScanner(r),
+		scanner:   scanner,
 	}
+}
+
+func splitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		// We have a full newline-terminated line.
+		return i + 1, data[0 : i+1], nil
+	}
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), data, nil
+	}
+	// Request more data.
+	return 0, nil, nil
+}
+
+// dropCRLF drops a terminal (\r)\n from in and returns a (possibly shorter) out slice and whether dropping was done.
+func dropCRLF(in []byte) (out []byte, dropped bool) {
+	out = in
+
+	if len(in) > 0 && in[len(in)-1] == '\n' {
+		out = in[0 : len(in)-1]
+		dropped = true
+	}
+
+	if len(out) > 0 && out[len(out)-1] == '\r' {
+		out = out[0 : len(out)-1]
+		dropped = true
+	}
+
+	return
 }
 
 // Read reads one Row from r.
@@ -53,6 +89,11 @@ func (p *Parser) Read() (Row, error) {
 		p.row = make(Row, p.n)
 	} else {
 		line = p.scanner.Bytes()
+	}
+
+	line, droppedCr := dropCRLF(line)
+	if !droppedCr {
+		return nil, ErrTruncatedLine
 	}
 
 	var n, start int
