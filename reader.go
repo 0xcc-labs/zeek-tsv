@@ -32,6 +32,7 @@ type Header struct {
 	Unset        []byte
 	Empty        []byte
 	SetSeparator []byte
+	Path         string
 }
 
 // FieldType is a zeek field type.
@@ -105,6 +106,11 @@ func (r *Reader) WithKeyTransform(xform KeyTransform) *Reader {
 func (r *Reader) OmitEmpty(b bool) *Reader {
 	r.omitEmpty = b
 	return r
+}
+
+// Header returns the log meta-info.
+func (r *Reader) Header() *Header {
+	return r.header
 }
 
 func (r *Reader) Read() (Record, error) {
@@ -184,6 +190,8 @@ func (r *Reader) readHeader() (*Header, error) {
 				}
 				header.Types = append(header.Types, fieldType)
 			}
+		case "#path":
+			header.Path = string(row[1][:])
 		}
 	}
 	return &header, nil
