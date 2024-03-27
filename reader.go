@@ -3,7 +3,6 @@ package tsv
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -156,7 +155,7 @@ func (r *Reader) readHeader() (*Header, error) {
 			encodedSeparator := parts[1]
 			sep, err := hex.DecodeString(string(encodedSeparator[2:]))
 			if err != nil {
-				return nil, fmt.Errorf("invalid separator")
+				return nil, ErrInvalidSeparator
 			}
 			header.Separator = sep[0]
 			continue
@@ -203,10 +202,13 @@ func readFieldType(s string) (FieldType, error) {
 			container: container,
 		}, nil
 	}
-	return FieldType{}, fmt.Errorf("unknown field type: %s", s)
+	return FieldType{}, ErrorInvalidFieldType{TypeName: s}
 }
 
 func (r *Reader) readValue(row Row, idx int) (interface{}, error) {
+	if idx >= len(row) {
+		return nil, ErrTruncatedLine
+	}
 	if bytes.Equal(row[idx], r.header.Unset) {
 		return nil, nil
 	}
