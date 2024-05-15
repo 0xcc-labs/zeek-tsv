@@ -30,6 +30,10 @@ func NewParser(r io.Reader) *Parser {
 	}
 }
 
+func (p *Parser) SetBufferSize(bufSize int) {
+	p.scanner.Buffer(make([]byte, bufSize), bufSize)
+}
+
 func splitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
