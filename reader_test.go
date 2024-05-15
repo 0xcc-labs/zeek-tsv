@@ -1,7 +1,9 @@
 package tsv
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -44,6 +46,20 @@ var truncatedInput2 = `#separator \x09
 1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	-10	T	a.com,b.com	1,23.45
 1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	-10	T	a.com,b.com	1,23.4`
 
+const giantColumnSize = 128 * 1024
+
+var giantInput = `#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	test
+#open	2019-01-01-00-00-00
+#fields	ts	foo	bar
+#types	time	string	string
+1546304400.000001	` + strings.Repeat("a", giantColumnSize) + `	` + strings.Repeat("a", giantColumnSize) + `
+#close	2019-01-01-00-00-01
+`
+
 func TestReadHeader(t *testing.T) {
 	reader := NewReader(strings.NewReader(input))
 	header, err := reader.readHeader()
@@ -85,41 +101,49 @@ var expected = []Record{
 	Record{},
 }
 
-func MakeReadTester(input string, expectedOutput []Record, expectedErrors []error) func(t *testing.T) {
+var expectedGiant = Record{
+	"ts":  float64(1546304400.000001),
+	"foo": strings.Repeat("a", giantColumnSize),
+}
+
+func MakeReadTester(input string, expectedOutput []Record, expectedError error, bufSize *int) func(t *testing.T) {
 	return func(t *testing.T) {
 		reader := NewReader(strings.NewReader(input))
-		actual, actualErrors := collectWithErrors(reader)
-		if len(expectedOutput) != len(actual) {
-			t.Fatalf("expected %d records, got %d", len(expectedOutput), len(actual))
+		if bufSize != nil {
+			reader = reader.WithBufferSize(*bufSize)
 		}
-		for i := 0; i < len(expectedOutput); i++ {
-			for k, v := range expectedOutput[i] {
-				if !reflect.DeepEqual(v, actual[i][k]) {
-					t.Errorf("%s mismatch. expected %v (%T), got %v (%T)",
-						k, v, v, actual[i][k], actual[i][k])
+		actual, actualError := collectWithError(reader)
+		if len(expectedOutput) != len(actual) {
+			t.Errorf("expected %d records, got %d", len(expectedOutput), len(actual))
+		} else {
+			for i := 0; i < len(expectedOutput); i++ {
+				for k, v := range expectedOutput[i] {
+					if !reflect.DeepEqual(v, actual[i][k]) {
+						t.Errorf("%s mismatch. expected %v (%T), got %v (%T)",
+							k, v, v, actual[i][k], actual[i][k])
+					}
 				}
 			}
 		}
 
-		if len(expectedErrors) != len(actualErrors) {
-			t.Fatalf("expected %d errors, got %d", len(expectedErrors), len(actualErrors))
-		}
-
-		for i := 0; i < len(expectedErrors); i++ {
-			if !reflect.DeepEqual(expectedErrors[i], actualErrors[i]) {
-				t.Errorf("expected error %v (%T), got %v (%T)",
-					expectedErrors[i], expectedErrors[i], actualErrors[i], actualErrors[i])
-			}
+		if !reflect.DeepEqual(expectedError, actualError) {
+			t.Errorf("expected error %v (%T), got %v (%T)",
+				expectedError, expectedError, actualError, actualError)
 		}
 	}
 }
 
 func TestRead(t *testing.T) {
-	t.Run("all ok", MakeReadTester(input, expected, nil))
+	t.Run("all ok", MakeReadTester(input, expected, io.EOF, nil))
 	t.Run("line truncated in the middle (on a delimiter)",
-		MakeReadTester(truncatedInput1, []Record{expected[0]}, []error{ErrTruncatedLine}))
+		MakeReadTester(truncatedInput1, []Record{expected[0]}, ErrTruncatedLine, nil))
 	t.Run("line truncated inside the last column",
-		MakeReadTester(truncatedInput2, []Record{expected[0]}, []error{ErrTruncatedLine}))
+		MakeReadTester(truncatedInput2, []Record{expected[0]}, ErrTruncatedLine, nil))
+	t.Run(fmt.Sprintf("line with %d byte column and default buffer", giantColumnSize),
+		MakeReadTester(giantInput, []Record{}, bufio.ErrTooLong, nil))
+	bufSize := 1024 * 1024 * 1024
+	t.Run(fmt.Sprintf("line with %d byte column and %d byte buffer", giantColumnSize, bufSize),
+		MakeReadTester(giantInput, []Record{expectedGiant}, io.EOF, &bufSize))
 }
 
 func TestReadFieldType(t *testing.T) {
@@ -203,14 +227,11 @@ func collect(reader *Reader) (records []Record) {
 	return
 }
 
-func collectWithErrors(reader *Reader) (records []Record, errors []error) {
+func collectWithError(reader *Reader) (records []Record, err error) {
 	for {
-		record, err := reader.Read()
+		var record Record
+		record, err = reader.Read()
 		if err != nil {
-			if err != io.EOF {
-				errors = append(errors, err)
-				continue
-			}
 			break
 		}
 		records = append(records, record)
