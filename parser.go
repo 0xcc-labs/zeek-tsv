@@ -12,92 +12,38 @@ type Row [][]byte
 // Parser reads Rows from byte-separated input.
 type Parser struct {
 	Delimiter byte
-	Copy      bool
-	scanner   *bufio.Scanner
+	reader    *bufio.Reader
 	row       Row
 	n         int
 }
 
 // NewParser returns a new Parser that reads from r.
 func NewParser(r io.Reader) *Parser {
-	scanner := bufio.NewScanner(r)
-	scanner.Split(splitFunc)
+	reader := bufio.NewReader(r)
 
 	return &Parser{
 		Delimiter: '\t',
-		Copy:      false,
-		scanner:   scanner,
+		reader:    reader,
 	}
-}
-
-func (p *Parser) SetBufferSize(bufSize int) {
-	p.scanner.Buffer(make([]byte, bufSize), bufSize)
-}
-
-func splitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
-	}
-	if i := bytes.IndexByte(data, '\n'); i >= 0 {
-		// We have a full newline-terminated line.
-		return i + 1, data[0 : i+1], nil
-	}
-	// If we're at EOF, we have a final, non-terminated line. Return it.
-	if atEOF {
-		return len(data), data, nil
-	}
-	// Request more data.
-	return 0, nil, nil
-}
-
-// dropCRLF drops a terminal (\r)\n from in and returns a (possibly shorter) out slice and whether dropping was done.
-func dropCRLF(in []byte) (out []byte, dropped bool) {
-	out = in
-
-	if len(in) > 0 && in[len(in)-1] == '\n' {
-		out = in[0 : len(in)-1]
-		dropped = true
-	}
-
-	if len(out) > 0 && out[len(out)-1] == '\r' {
-		out = out[0 : len(out)-1]
-		dropped = true
-	}
-
-	return
 }
 
 // Read reads one Row from r.
 func (p *Parser) Read() (Row, error) {
-	if !p.scanner.Scan() {
-		if err := p.scanner.Err(); err != nil {
-			return nil, err
+	line, err := p.reader.ReadBytes('\n')
+	if err != nil {
+		if err == io.EOF && len(line) != 0 {
+			return nil, ErrTruncatedLine
 		}
-		return nil, io.EOF
+		// Remaining possibilities are:
+		// - io.EOF with no line truncation
+		// - some other (non-EOF) error
+		return nil, err
 	}
 
 	if p.n == 0 {
 		// count columns
-		p.n = bytes.Count(p.scanner.Bytes(), []byte{p.Delimiter}) + 1
-		if p.Copy == false {
-			p.row = make(Row, p.n)
-		}
-	}
-
-	var line []byte
-
-	if p.Copy {
-		b := p.scanner.Bytes()
-		line := make([]byte, len(b))
-		copy(line, b)
+		p.n = bytes.Count(line, []byte{p.Delimiter}) + 1
 		p.row = make(Row, p.n)
-	} else {
-		line = p.scanner.Bytes()
-	}
-
-	line, droppedCr := dropCRLF(line)
-	if !droppedCr {
-		return nil, ErrTruncatedLine
 	}
 
 	var n, start int
@@ -108,7 +54,16 @@ func (p *Parser) Read() (Row, error) {
 			n++
 		}
 	}
-	p.row[n] = line[start:]
+
+	// Handle final column, including stripping (\r)\n from it.
+	end := len(line) - 1
+	if line[end] == '\n' {
+		end--
+	}
+	if line[end] == '\r' {
+		end--
+	}
+	p.row[n] = line[start : end+1]
 
 	return p.row, nil
 }
