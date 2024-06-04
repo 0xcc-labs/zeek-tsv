@@ -107,12 +107,6 @@ func (r *Reader) OmitEmpty(b bool) *Reader {
 	return r
 }
 
-// WithBufferSize configures the reader with a custom line scanner buffer size.
-func (r *Reader) WithBufferSize(bufSize int) *Reader {
-	r.parser.SetBufferSize(bufSize)
-	return r
-}
-
 // Header returns the log meta-info.
 func (r *Reader) Header() *Header {
 	return r.header

@@ -1,7 +1,6 @@
 package tsv
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -106,12 +105,9 @@ var expectedGiant = Record{
 	"foo": strings.Repeat("a", giantColumnSize),
 }
 
-func MakeReadTester(input string, expectedOutput []Record, expectedError error, bufSize *int) func(t *testing.T) {
+func MakeReadTester(input string, expectedOutput []Record, expectedError error) func(t *testing.T) {
 	return func(t *testing.T) {
 		reader := NewReader(strings.NewReader(input))
-		if bufSize != nil {
-			reader = reader.WithBufferSize(*bufSize)
-		}
 		actual, actualError := collectWithError(reader)
 		if len(expectedOutput) != len(actual) {
 			t.Errorf("expected %d records, got %d", len(expectedOutput), len(actual))
@@ -134,16 +130,13 @@ func MakeReadTester(input string, expectedOutput []Record, expectedError error, 
 }
 
 func TestRead(t *testing.T) {
-	t.Run("all ok", MakeReadTester(input, expected, io.EOF, nil))
+	t.Run("all ok", MakeReadTester(input, expected, io.EOF))
 	t.Run("line truncated in the middle (on a delimiter)",
-		MakeReadTester(truncatedInput1, []Record{expected[0]}, ErrTruncatedLine, nil))
+		MakeReadTester(truncatedInput1, []Record{expected[0]}, ErrTruncatedLine))
 	t.Run("line truncated inside the last column",
-		MakeReadTester(truncatedInput2, []Record{expected[0]}, ErrTruncatedLine, nil))
-	t.Run(fmt.Sprintf("line with %d byte column and default buffer", giantColumnSize),
-		MakeReadTester(giantInput, []Record{}, bufio.ErrTooLong, nil))
-	bufSize := 1024 * 1024 * 1024
-	t.Run(fmt.Sprintf("line with %d byte column and %d byte buffer", giantColumnSize, bufSize),
-		MakeReadTester(giantInput, []Record{expectedGiant}, io.EOF, &bufSize))
+		MakeReadTester(truncatedInput2, []Record{expected[0]}, ErrTruncatedLine))
+	t.Run(fmt.Sprintf("line with %d byte column", giantColumnSize),
+		MakeReadTester(giantInput, []Record{expectedGiant}, io.EOF))
 }
 
 func TestReadFieldType(t *testing.T) {
