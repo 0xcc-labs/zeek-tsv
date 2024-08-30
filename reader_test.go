@@ -2,6 +2,7 @@ package tsv
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -74,7 +75,7 @@ var giantInput = `#separator \x09
 
 func TestReadHeader(t *testing.T) {
 	reader := NewReader(strings.NewReader(input))
-	header, err := reader.readHeader()
+	header, err := readHeader(reader.parser, reader.keyTransform)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,6 +114,37 @@ var expected = []Record{
 	Record{},
 }
 
+var expectedColumns = []string{
+	"ts",
+	"uid",
+	"id.orig_h",
+	"id.orig_p",
+	"proto",
+	"duration",
+	"bytes",
+	"num",
+	"orig",
+	"domains",
+	"durations",
+}
+
+var expectedStrings = [][]string{
+	{"1546304400.000001",
+		"CCb2Mx28qOMGD3hxab",
+		"1.1.1.1",
+		"80",
+		"udp",
+		"3.755453",
+		"1001",
+		"-10",
+		"T",
+		"a.com,b.com",
+		"1,23.45"},
+	{"-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"},
+	{"(empty)", "(empty)", "(empty)", "(empty)", "(empty)", "(empty)", "(empty)", "(empty)", "(empty)",
+		"(empty)", "(empty)"},
+}
+
 var expectedGiant = Record{
 	"ts":  float64(1546304400.000001),
 	"foo": strings.Repeat("a", giantColumnSize),
@@ -142,6 +174,58 @@ func MakeReadTester(input string, expectedOutput []Record, expectedError error) 
 	}
 }
 
+func MakeLazyReadTester(input string, expectedOutput []Record, expectedError error) func(t *testing.T) {
+	return func(t *testing.T) {
+		lazyReader := NewLazyReader(strings.NewReader(input))
+		actual, actualError := collectLazilyWithError(lazyReader)
+		if len(expectedOutput) != len(actual) {
+			t.Errorf("expected %d records, got %d", len(expectedOutput), len(actual))
+		} else {
+			for i := 0; i < len(expectedOutput); i++ {
+				for k, v := range expectedOutput[i] {
+					if !reflect.DeepEqual(v, actual[i][k]) {
+						t.Errorf("%s mismatch. expected %v (%T), got %v (%T)",
+							k, v, v, actual[i][k], actual[i][k])
+					}
+				}
+			}
+		}
+
+		if !reflect.DeepEqual(expectedError, actualError) {
+			t.Errorf("expected error %v (%T), got %v (%T)",
+				expectedError, expectedError, actualError, actualError)
+		}
+
+		lazyReader = NewLazyReader(strings.NewReader(input))
+		actualBytes, actualError := collectBytesLazilyWithError(lazyReader)
+
+		if len(expectedOutput) != len(actualBytes) {
+			t.Errorf("(bytes) expected %d records, got %d", len(expectedOutput), len(actualBytes))
+		} else {
+			for i := 0; i < len(actualBytes); i++ {
+				for idx, v := range expectedStrings[i] {
+
+					if v == "-" || v == "(empty)" {
+						v = ""
+					}
+
+					if v != string(actualBytes[i][idx]) {
+						t.Errorf("%d/%d (bytes)  %s mismatch. expected \"%s\" (%T), got \"%s\" (%T)",
+							i, idx, expectedColumns[idx],
+							v, v,
+							string(actualBytes[i][idx]), string(actualBytes[i][idx]))
+					}
+				}
+			}
+		}
+
+		if !reflect.DeepEqual(expectedError, actualError) {
+			t.Errorf("(bytes) expected error %v (%T), got %v (%T)",
+				expectedError, expectedError, actualError, actualError)
+		}
+	}
+}
+
 func TestRead(t *testing.T) {
 	t.Run("all ok", MakeReadTester(input, expected, io.EOF))
 	t.Run("line truncated in the middle (on a delimiter)",
@@ -154,6 +238,16 @@ func TestRead(t *testing.T) {
 		MakeReadTester(giantInput, []Record{expectedGiant}, io.EOF))
 }
 
+func TestLazyRead(t *testing.T) {
+	t.Run("all ok", MakeLazyReadTester(input, expected, io.EOF))
+	t.Run("line truncated in the middle (on a delimiter)",
+		MakeLazyReadTester(truncatedInput1, []Record{expected[0]}, ErrTruncatedLine))
+	t.Run("line truncated inside the last column",
+		MakeLazyReadTester(truncatedInput2, []Record{expected[0]}, ErrTruncatedLine))
+	//t.Run(fmt.Sprintf("line with %d byte column", giantColumnSize),
+	//	MakeLazyReadTester(giantInput, []Record{expectedGiant}, io.EOF))
+}
+
 func TestReadFieldType(t *testing.T) {
 	var tests = []struct {
 		in  string
@@ -162,22 +256,22 @@ func TestReadFieldType(t *testing.T) {
 		{
 			in: "bool",
 			out: FieldType{
-				dataType:  Bool,
-				container: false,
+				Type:        Bool,
+				IsContainer: false,
 			},
 		},
 		{
 			in: "vector[string]",
 			out: FieldType{
-				dataType:  String,
-				container: true,
+				Type:        String,
+				IsContainer: true,
 			},
 		},
 		{
 			in: "vector[interval]",
 			out: FieldType{
-				dataType:  Interval,
-				container: true,
+				Type:        Interval,
+				IsContainer: true,
 			},
 		},
 	}
@@ -243,6 +337,63 @@ func collectWithError(reader *Reader) (records []Record, err error) {
 			break
 		}
 		records = append(records, record)
+	}
+	return
+}
+
+func collectLazilyWithError(lazyReader *LazyReader) (records []Record, err error) {
+	for {
+		record := make(Record)
+		var lazyRecord *LazyRecord
+		lazyRecord, err = lazyReader.Read()
+		if err != nil {
+			break
+		}
+
+		for _, field := range lazyReader.Header().Fields {
+			var value interface{}
+			value, err = lazyRecord.ValueByName(field)
+			if err != nil {
+				return
+			}
+
+			record[field] = value
+		}
+
+		records = append(records, record)
+	}
+	return
+}
+
+func collectBytesLazilyWithError(lazyReader *LazyReader) (rows [][][]byte, err error) {
+	for {
+		var lazyRecord *LazyRecord
+		lazyRecord, err = lazyReader.Read()
+		if err != nil {
+			break
+		}
+
+		var row [][]byte
+		for i, field := range lazyReader.Header().Fields {
+			var buf []byte
+			buf, err = lazyRecord.BytesByName(field)
+			if err != nil {
+				return
+			}
+
+			var cmpBytes []byte
+			cmpBytes, err = lazyRecord.BytesByIndex(i)
+			if err != nil {
+				return
+			}
+			if bytes.Compare(buf, cmpBytes) != 0 {
+				err = errors.New("BytesByName() and BytesByIndex for the same column differ")
+			}
+
+			row = append(row, buf)
+		}
+
+		rows = append(rows, row)
 	}
 	return
 }
