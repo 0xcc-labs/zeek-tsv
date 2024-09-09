@@ -45,6 +45,19 @@ var truncatedInput2 = `#separator \x09
 1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	-10	T	a.com,b.com	1,23.45
 1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	-10	T	a.com,b.com	1,23.4`
 
+var truncatedInput3 = `#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	test
+#open	2019-01-01-00-00-00
+#fields	ts	uid	id.orig_h	id.orig_p	proto	duration	bytes	num	orig	domains	durations
+#types	time	string	addr	port	enum	interval	count	int	bool	vector[string]	vector[interval]
+1546304400.000001	CCb2Mx28qOMGD3hxab	1.1.1.1	80	udp	3.755453	1001	-10	T	a.com,b.com	1,23.45
+-	-	-	-	-	-	-	-	-	-	-
+(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)	(empty)
+#close	2019-01-01-00-00-01`
+
 const giantColumnSize = 128 * 1024
 
 var giantInput = `#separator \x09
@@ -135,6 +148,8 @@ func TestRead(t *testing.T) {
 		MakeReadTester(truncatedInput1, []Record{expected[0]}, ErrTruncatedLine))
 	t.Run("line truncated inside the last column",
 		MakeReadTester(truncatedInput2, []Record{expected[0]}, ErrTruncatedLine))
+	t.Run("#close footer line truncated",
+		MakeReadTester(truncatedInput3, expected, io.EOF))
 	t.Run(fmt.Sprintf("line with %d byte column", giantColumnSize),
 		MakeReadTester(giantInput, []Record{expectedGiant}, io.EOF))
 }

@@ -31,10 +31,11 @@ func NewParser(r io.Reader) *Parser {
 func (p *Parser) Read() (Row, error) {
 	line, err := p.reader.ReadBytes('\n')
 	if err != nil {
-		if err == io.EOF && len(line) != 0 {
+		if err == io.EOF && len(line) != 0 && !bytes.HasPrefix(line, []byte("#")) {
 			return nil, ErrTruncatedLine
 		}
 		// Remaining possibilities are:
+		// - io.EOF with truncation on a line starting with '#' (typically a "#close ..." footer)
 		// - io.EOF with no line truncation
 		// - some other (non-EOF) error
 		return nil, err
