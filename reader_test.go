@@ -24,6 +24,8 @@ var input = `#separator \x09
 #close	2019-01-01-00-00-01
 `
 
+var inputHeaderLength = uint64(279)
+
 var truncatedInput1 = `#separator \x09
 #set_separator	,
 #empty_field	(empty)
@@ -222,6 +224,66 @@ func MakeLazyReadTester(input string, expectedOutput []Record, expectedError err
 		if !reflect.DeepEqual(expectedError, actualError) {
 			t.Errorf("(bytes) expected error %v (%T), got %v (%T)",
 				expectedError, expectedError, actualError, actualError)
+		}
+	}
+}
+
+func TestHeaderLength(t *testing.T) {
+	reader := NewReader(strings.NewReader(input))
+	if _, err := reader.Read(); err != nil {
+		t.Fatal(err)
+	}
+
+	if reader.Header().Length != inputHeaderLength {
+		t.Fatalf("Got header length of %d (wanted %d)", reader.Header().Length, inputHeaderLength)
+	}
+}
+
+func TestLazySeekableReader(t *testing.T) {
+	reader := NewLazySeekableReader(strings.NewReader(input))
+
+	// Read row 0
+	row, err := reader.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Now we know the offset of the first row should be == the header length
+	if reader.Offset() != inputHeaderLength {
+		t.Fatalf("Got offset of of %d (wanted %d)", reader.Offset(), inputHeaderLength)
+	}
+
+	// Get the byte length of row 0
+	var rowLen uint64
+	for _, val := range row.Row() {
+		rowLen += uint64(len(val) + 1) // + 1 for each \t and the final \n
+	}
+
+	// Read row 1
+	if _, err := reader.Read(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now offset of row 1 should be += length of row 0
+	if reader.Offset() != inputHeaderLength+rowLen {
+		t.Fatalf("Got offset of of %d (wanted %d)", reader.Offset(), inputHeaderLength+rowLen)
+	}
+
+	// Seek back to row 0
+	if err := reader.Seek(inputHeaderLength); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-read row 0
+	row0Again, err := reader.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, valA := range row.Row() {
+		valB := row0Again.Row()[i]
+		if !bytes.Equal(valA, valB) {
+			t.Errorf("Row 0 col %d not equal on re-read: %s vs %s", i, string(valA), string(valB))
 		}
 	}
 }

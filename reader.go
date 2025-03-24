@@ -21,6 +21,7 @@ type Reader struct {
 	header       *Header
 	keyTransform KeyTransform
 	omitEmpty    bool
+	recordOffset uint64
 }
 
 // Header is a zeek tsv file header.
@@ -32,6 +33,7 @@ type Header struct {
 	Empty        []byte
 	SetSeparator []byte
 	Path         string
+	Length       uint64
 }
 
 // FieldType is a zeek field type.
@@ -91,7 +93,7 @@ func init() {
 }
 
 // NewReader creates a new reader.
-func NewReader(r io.Reader) *Reader {
+func NewReader(r io.ReadSeeker) *Reader {
 	return &Reader{parser: NewParser(r)}
 }
 
@@ -121,8 +123,11 @@ func (r *Reader) Read() (Record, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		r.recordOffset = r.header.Length
 		row = r.parser.Current()
 	} else {
+		r.recordOffset = r.parser.offset
 		row, err = r.parser.Read()
 		if err != nil {
 			return nil, err
@@ -144,9 +149,18 @@ func (r *Reader) Read() (Record, error) {
 	return record, nil
 }
 
+func (r *Reader) Offset() uint64 {
+	return r.recordOffset
+}
+
+func (r *Reader) Seek(offset uint64) error {
+	return r.parser.Seek(offset)
+}
+
 func readHeader(parser *Parser, keyTransform KeyTransform) (*Header, error) {
 	header := Header{}
 	for {
+		header.Length = parser.offset
 		row, err := parser.Read()
 		if err != nil {
 			return nil, err

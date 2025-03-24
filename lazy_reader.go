@@ -7,15 +7,23 @@ import (
 
 // LazyReader is a zeek tsv file reader that defers type conversions.
 type LazyReader struct {
-	parser     *Parser
-	header     *Header
-	fieldIndex map[string]int
+	parser       *Parser
+	header       *Header
+	fieldIndex   map[string]int
+	recordOffset uint64
 }
 
 // NewLazyReader creates a new lazy reader.
 func NewLazyReader(r io.Reader) *LazyReader {
 	return &LazyReader{
 		parser: NewParser(r),
+	}
+}
+
+// NewLazySeekableReader creates a new lazy seekable reader.
+func NewLazySeekableReader(r io.ReadSeeker) *LazyReader {
+	return &LazyReader{
+		parser: NewSeekableParser(r),
 	}
 }
 
@@ -39,8 +47,10 @@ func (r *LazyReader) Read() (*LazyRecord, error) {
 			r.fieldIndex[fieldName] = idx
 		}
 
+		r.recordOffset = r.header.Length
 		row = r.parser.Current()
 	} else {
+		r.recordOffset = r.parser.offset
 		row, err = r.parser.Read()
 		if err != nil {
 			return nil, err
@@ -54,4 +64,12 @@ func (r *LazyReader) Read() (*LazyRecord, error) {
 		lazyReader: r,
 		row:        row,
 	}, nil
+}
+
+func (r *LazyReader) Offset() uint64 {
+	return r.recordOffset
+}
+
+func (r *LazyReader) Seek(offset uint64) error {
+	return r.parser.Seek(offset)
 }

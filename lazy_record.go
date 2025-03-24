@@ -18,6 +18,10 @@ type LazyRecord struct {
 	row        Row
 }
 
+func (r *LazyRecord) Row() [][]byte {
+	return r.row
+}
+
 func (r *LazyRecord) BytesByName(field string) ([]byte, error) {
 	idx, ok := r.lazyReader.fieldIndex[field]
 	if !ok {

@@ -12,9 +12,11 @@ type Row [][]byte
 // Parser reads Rows from byte-separated input.
 type Parser struct {
 	Delimiter byte
+	fh        io.ReadSeeker
 	reader    *bufio.Reader
 	row       Row
 	n         int
+	offset    uint64
 }
 
 // NewParser returns a new Parser that reads from r.
@@ -24,6 +26,17 @@ func NewParser(r io.Reader) *Parser {
 	return &Parser{
 		Delimiter: '\t',
 		reader:    reader,
+	}
+}
+
+// NewSeekableParser returns a new Parser that reads from r and supports seeking via Seek().
+func NewSeekableParser(r io.ReadSeeker) *Parser {
+	reader := bufio.NewReader(r)
+
+	return &Parser{
+		Delimiter: '\t',
+		reader:    reader,
+		fh:        r,
 	}
 }
 
@@ -40,6 +53,8 @@ func (p *Parser) Read() (Row, error) {
 		// - some other (non-EOF) error
 		return nil, err
 	}
+
+	p.offset += uint64(len(line))
 
 	if p.n == 0 {
 		// count columns
@@ -77,4 +92,18 @@ func (p *Parser) Current() Row {
 // ResetRow clears the row metadata.
 func (p *Parser) ResetRow() {
 	p.n = 0
+}
+
+func (p *Parser) Seek(offset uint64) error {
+	if p.fh == nil {
+		return ErrSeekingUnsupported
+	}
+	_, err := p.fh.Seek(int64(offset), 0)
+	if err != nil {
+		return err
+	}
+
+	p.reader.Reset(p.fh)
+
+	return nil
 }
