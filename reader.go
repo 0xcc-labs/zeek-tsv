@@ -36,8 +36,8 @@ type Header struct {
 
 // FieldType is a zeek field type.
 type FieldType struct {
-	dataType  DataType
-	container bool
+	Type        DataType
+	IsContainer bool
 }
 
 // DataType is a zeek data type.
@@ -117,7 +117,7 @@ func (r *Reader) Read() (Record, error) {
 	var err error
 
 	if r.header == nil {
-		r.header, err = r.readHeader()
+		r.header, err = readHeader(r.parser, r.keyTransform)
 		if err != nil {
 			return nil, err
 		}
@@ -144,14 +144,14 @@ func (r *Reader) Read() (Record, error) {
 	return record, nil
 }
 
-func (r *Reader) readHeader() (*Header, error) {
+func readHeader(parser *Parser, keyTransform KeyTransform) (*Header, error) {
 	header := Header{}
 	for {
-		row, err := r.parser.Read()
+		row, err := parser.Read()
 		if err != nil {
 			return nil, err
 		}
-		r.parser.ResetRow()
+		parser.ResetRow()
 
 		if !bytes.HasPrefix(row[0], []byte("#")) {
 			break
@@ -176,8 +176,8 @@ func (r *Reader) readHeader() (*Header, error) {
 		case "#fields":
 			for _, f := range row[1:] {
 				field := string(f)
-				if r.keyTransform != nil {
-					field = r.keyTransform(field)
+				if keyTransform != nil {
+					field = keyTransform(field)
 				}
 				header.Fields = append(header.Fields, field)
 			}
@@ -206,8 +206,8 @@ func readFieldType(s string) (FieldType, error) {
 	}
 	if dataType, ok := dataTypeLookup[s]; ok {
 		return FieldType{
-			dataType:  dataType,
-			container: container,
+			Type:        dataType,
+			IsContainer: container,
 		}, nil
 	}
 	return FieldType{}, ErrorInvalidFieldType{TypeName: s}
@@ -221,13 +221,13 @@ func (r *Reader) readValue(row Row, idx int) (interface{}, error) {
 		return nil, nil
 	}
 	if bytes.Equal(row[idx], r.header.Empty) {
-		if r.header.Types[idx].container {
+		if r.header.Types[idx].IsContainer {
 			return nil, nil
 		}
 		return nil, nil
 	}
-	converter := ValueConverters[r.header.Types[idx].dataType]
-	if r.header.Types[idx].container {
+	converter := ValueConverters[r.header.Types[idx].Type]
+	if r.header.Types[idx].IsContainer {
 		parts := bytes.Split(row[idx], r.header.SetSeparator)
 		res := make([]interface{}, len(parts))
 		for i := 0; i < len(parts); i++ {
