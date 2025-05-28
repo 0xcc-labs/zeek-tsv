@@ -93,7 +93,7 @@ func init() {
 }
 
 // NewReader creates a new reader.
-func NewReader(r io.ReadSeeker) *Reader {
+func NewReader(r io.Reader) *Reader {
 	return &Reader{parser: NewParser(r)}
 }
 
