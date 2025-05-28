@@ -25,6 +25,7 @@ var input = `#separator \x09
 `
 
 var inputHeaderLength = uint64(279)
+var inputRow0Length = uint64(92)
 
 var truncatedInput1 = `#separator \x09
 #set_separator	,
@@ -236,6 +237,46 @@ func TestHeaderLength(t *testing.T) {
 
 	if reader.Header().Length != inputHeaderLength {
 		t.Fatalf("Got header length of %d (wanted %d)", reader.Header().Length, inputHeaderLength)
+	}
+}
+
+func TestSeekableReader(t *testing.T) {
+	reader := NewSeekableReader(strings.NewReader(input))
+
+	// Read row 0
+	row, err := reader.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Now we know the offset of the first row should be == the header length
+	if reader.Offset() != inputHeaderLength {
+		t.Fatalf("Got offset of of %d (wanted %d)", reader.Offset(), inputHeaderLength)
+	}
+
+	// Read row 1
+	if _, err := reader.Read(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now offset of row 1 should be += length of row 0
+	if reader.Offset() != inputHeaderLength+inputRow0Length {
+		t.Fatalf("Got offset of of %d (wanted %d)", reader.Offset(), inputHeaderLength+inputRow0Length)
+	}
+
+	// Seek back to row 0
+	if err := reader.Seek(inputHeaderLength); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-read row 0
+	row0Again, err := reader.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(row, row0Again) {
+		t.Fatal("two reads of row 0 not equal")
 	}
 }
 

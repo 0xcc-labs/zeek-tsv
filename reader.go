@@ -97,6 +97,13 @@ func NewReader(r io.Reader) *Reader {
 	return &Reader{parser: NewParser(r)}
 }
 
+// NewSeekableReader creates a new seekable reader.
+func NewSeekableReader(r io.ReadSeeker) *Reader {
+	return &Reader{
+		parser: NewSeekableParser(r),
+	}
+}
+
 // WithKeyTransform configures the reader to transform record keys.
 func (r *Reader) WithKeyTransform(xform KeyTransform) *Reader {
 	r.keyTransform = xform
