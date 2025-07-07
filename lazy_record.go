@@ -18,6 +18,10 @@ type LazyRecord struct {
 	row        Row
 }
 
+func (r *LazyRecord) Fields() map[string]int {
+	return r.lazyReader.fieldIndex
+}
+
 func (r *LazyRecord) Row() [][]byte {
 	return r.row
 }
