@@ -70,6 +70,10 @@ func (r *LazyRecord) ValueByIndex(idx int) (interface{}, error) {
 		return nil, nil
 	}
 
+	if bytes.Equal(buf, r.lazyReader.header.Unset) || bytes.Equal(buf, r.lazyReader.header.Empty) {
+		return nil, nil
+	}
+
 	converter := ValueConverters[r.lazyReader.header.Types[idx].Type]
 	if r.lazyReader.header.Types[idx].IsContainer {
 		parts := bytes.Split(buf, r.lazyReader.header.SetSeparator)
